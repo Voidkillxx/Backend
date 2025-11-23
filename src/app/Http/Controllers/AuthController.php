@@ -24,6 +24,7 @@ class AuthController extends Controller
             'email' => 'required|email|unique:users',
             'phone_number' => 'required',
             'address' => 'required',
+            'zipcode' => 'required|string|max:10', // <--- Validation
             'password' => 'required|min:8'
         ]);
 
@@ -34,6 +35,7 @@ class AuthController extends Controller
             'email' => $request->email,
             'phone_number' => $request->phone_number,
             'address' => $request->address,
+            'zipcode' => $request->zipcode, // <--- Save to DB
             'password' => Hash::make($request->password),
         ]);
 
@@ -47,31 +49,26 @@ class AuthController extends Controller
         ], 201);
     }
 
-    // --- API LOGIN (UPDATED) ---
+    // --- API LOGIN ---
     public function loginApi(Request $request) {
         $request->validate([
-            'login_id' => 'required', // Accepts Email OR Username
+            'login_id' => 'required',
             'password' => 'required'
         ]);
 
-        // Determine if input is email or username
         $fieldType = filter_var($request->login_id, FILTER_VALIDATE_EMAIL) ? 'email' : 'username';
-
-        // Find user
         $user = User::where($fieldType, $request->login_id)->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
             return response()->json(['message' => 'Invalid credentials'], 401);
         }
 
-        // Send OTP
         $otpController = new OtpController();
         $otpController->sendOtpApi($user);
 
         return response()->json([
             'message' => 'Credentials valid. OTP sent.',
-            // Return the REAL email so frontend can use it for OTP verification
-            'email' => $user->email, 
+            'email' => $user->email,
             'require_otp' => true
         ]);
     }
@@ -79,12 +76,8 @@ class AuthController extends Controller
     // --- RESEND OTP ---
     public function resendOtpApi(Request $request) {
         $request->validate(['email' => 'required|email']);
-        
         $user = User::where('email', $request->email)->first();
-        
-        if (!$user) {
-            return response()->json(['message' => 'User not found'], 404);
-        }
+        if (!$user) return response()->json(['message' => 'User not found'], 404);
 
         $otpController = new OtpController();
         $otpController->sendOtpApi($user);
@@ -95,16 +88,11 @@ class AuthController extends Controller
     // --- FORGOT PASSWORD ---
     public function forgotPasswordApi(Request $request) {
         $request->validate(['email' => 'required|email']);
-
         $user = User::where('email', $request->email)->first();
-
-        if (!$user) {
-            return response()->json(['message' => 'User not found'], 404);
-        }
+        if (!$user) return response()->json(['message' => 'User not found'], 404);
 
         $code = rand(100000, 999999);
         $firstName = explode(' ', $user->first_name)[0] ?? 'User';
-
         $intro = "Hi {$firstName},\nUse the code below to complete your verification process.";
         $outro = "Thanks,\nThe Jake Store Team";
 
@@ -134,26 +122,16 @@ class AuthController extends Controller
         ]);
 
         $user = User::where('email', $request->email)->first();
-
-        if (!$user) {
-            return response()->json(['message' => 'User not found'], 404);
-        }
+        if (!$user) return response()->json(['message' => 'User not found'], 404);
 
         $otpRecord = Otp::where('user_id', $user->id)->first();
-
-        if (!$otpRecord || $otpRecord->code != $request->code) {
-            return response()->json(['message' => 'Invalid Code'], 400);
-        }
-
-        if ($otpRecord->isExpired()) {
-            return response()->json(['message' => 'Code Expired'], 400);
-        }
+        if (!$otpRecord || $otpRecord->code != $request->code) return response()->json(['message' => 'Invalid Code'], 400);
+        if ($otpRecord->isExpired()) return response()->json(['message' => 'Code Expired'], 400);
 
         $user->password = Hash::make($request->password);
         $user->save();
-
         $otpRecord->delete();
 
-        return response()->json(['message' => 'Password reset successful! Please login with your new password.']);
+        return response()->json(['message' => 'Password reset successful! Please login.']);
     }
 }
