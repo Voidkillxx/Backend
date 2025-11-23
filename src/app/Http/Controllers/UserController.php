@@ -11,7 +11,6 @@ use Illuminate\Validation\Rule;
 class UserController extends Controller
 {
     // --- ADMIN METHODS ---
-
     public function index(Request $request) 
     { 
         if (!$request->user()->is_admin) return response()->json(['message' => 'Forbidden'], 403);
@@ -26,29 +25,23 @@ class UserController extends Controller
 
     public function update(Request $request, $id) 
     { 
-        // Security Check: Only Admins can update other users via this route
         if (!$request->user()->is_admin) return response()->json(['message' => 'Forbidden'], 403);
-
         $user = User::find($id);
         if (!$user) return response()->json(['message' => 'User not found'], 404);
-        
-        // Update user (including is_admin status)
         $user->update($request->all()); 
-        
         return response()->json(['message' => 'User updated', 'user' => $user], 200); 
     }
 
     public function destroy(Request $request, $id) 
     { 
         if (!$request->user()->is_admin) return response()->json(['message' => 'Forbidden'], 403);
-        
         $user = User::find($id);
         if (!$user) return response()->json(['message' => 'User not found'], 404);
-        
         $user->delete();
         return response()->json(['message' => 'User deleted'], 200); 
     }
 
+    // --- SELF-SERVICE PROFILE METHODS ---
 
     public function profile(Request $request) {
         return response()->json($request->user());
@@ -63,9 +56,11 @@ class UserController extends Controller
             'last_name' => 'required|string|max:255',
             'phone_number' => 'required|string|max:30',
             'address' => 'required|string|max:255',
+            'zipcode' => 'required|string|max:10', // <--- Validate
         ]);
         
-        $user->update($request->only(['first_name', 'last_name', 'phone_number', 'address']));
+        // Update with zipcode
+        $user->update($request->only(['first_name', 'last_name', 'phone_number', 'address', 'zipcode']));
         return response()->json(['message' => 'Profile updated successfully!', 'user' => $user]);
     }
 
